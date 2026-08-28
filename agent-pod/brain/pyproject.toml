@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "kuberbolt-client"
+version = "0.1.0"
+description = "Kuberbolt Python SDK for LangChain integration"
+authors = ["devlup labs"]
+readme = "README.md"
+packages = [{include = "kuberbolt"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+langchain = "^0.1.0"
+grpcio = "^1.60.0"
+protobuf = "^4.25.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
