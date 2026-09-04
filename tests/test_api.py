@@ -2,9 +2,9 @@ import logging
 from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
-from nostr_sdk import Keys
 
 from api.main import app
+from tests.conftest import FAKE_PUBKEY
 
 client = TestClient(app)
 
@@ -64,7 +64,8 @@ def test_register_client():
     data = response.json()
     assert data["role"] == "client"
     assert "agent_pubkey" in data
-    assert "agent_privkey" not in data
+    assert "agent_privkey" in data
+    assert "agent_nsec" in data
     assert data["status"] == "registered"
     assert data["listing_event_id"] is None
     assert "profile_event_id" in data
@@ -93,7 +94,8 @@ def test_register_merchant():
     data = response.json()
     assert data["role"] == "merchant"
     assert "agent_pubkey" in data
-    assert "agent_privkey" not in data
+    assert "agent_privkey" in data
+    assert "agent_nsec" in data
     assert data["service"]["service_name"] == "AI Text Generation"
     assert data["status"] == "registered"
     assert data["listing_event_id"] is not None
@@ -101,37 +103,32 @@ def test_register_merchant():
 
 def test_redaction_logging(caplog):
     caplog.set_level(logging.INFO)
-    test_key = Keys.generate().secret_key().to_hex()
-    dummy_pubkey = Keys.generate().public_key().to_hex()
+    dummy_pubkey = "b" * 64
 
     response = client.post(
         "/api/requests",
         json={
-            "nostr_privkey": test_key,
+            "agent_pubkey": FAKE_PUBKEY,
             "provider_pubkey": dummy_pubkey,
             "payload": {"action": "ping"},
             "timeout_seconds": 1,
         },
     )
-    # The actual network request may return success or no_reply depending on relays,
-    # but the key MUST NOT appear anywhere in the logs!
     for record in caplog.records:
-        assert test_key not in record.message
         if "Incoming Request" in record.message:
-            assert "[REDACTED]" in record.message
+            assert "agent_pubkey" in record.message
 
 
-def test_invalid_nostr_privkey():
+def test_unregistered_agent_pubkey():
     response = client.post(
         "/api/requests",
         json={
-            "nostr_privkey": "invalid_privkey_string",
-            "provider_pubkey": "0000000000000000000000000000000000000000000000000000000000000000",
+            "agent_pubkey": "0" * 64,
+            "provider_pubkey": "0" * 64,
             "payload": {"action": "ping"},
         },
     )
-    assert response.status_code == 400
-    assert response.json()["message"] == "invalid nostr_privkey"
+    assert response.status_code == 404
 
 
 def test_discover_providers():

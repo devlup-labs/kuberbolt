@@ -1,0 +1,104 @@
+syntax = "proto3";
+
+package kuberbolt.v1;
+
+option go_package = "github.com/kuberbolt/financial-pod/internal/pb;pb";
+
+// ──────────────────────────────────────────────────────────────────────────────
+// FinancialPodService — the single gRPC service exposed by the Financial Pod.
+// Clients call CallService to request AI compute; the pod gates access with L402.
+// ──────────────────────────────────────────────────────────────────────────────
+service FinancialPodService {
+  // CallService is the primary compute-for-payment RPC.
+  // Unauthenticated requests receive a 402 challenge (invoice + macaroon).
+  // Authenticated requests (macaroon + preimage) are forwarded to the AI brain.
+  rpc CallService(CallServiceRequest) returns (CallServiceResponse);
+
+  // PayHoldInvoice triggers an outgoing payment from this node's wallet.
+  rpc PayHoldInvoice(PayHoldInvoiceRequest) returns (PayHoldInvoiceResponse);
+
+  // GetBudgetInfo returns current daily/monthly spend counters.
+  rpc GetBudgetInfo(GetBudgetInfoRequest) returns (GetBudgetInfoResponse);
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// CallService messages
+// ──────────────────────────────────────────────────────────────────────────────
+
+message CallServiceRequest {
+  // Kind of service being requested (e.g. "text-completion", "image-gen").
+  string service_kind = 1;
+
+  // JSON-encoded job definition. Content is service-kind-specific.
+  bytes job_spec = 2;
+
+  // Present only on the authenticated retry (after payment).
+  string macaroon_hex = 3;
+
+  // Present only on the authenticated retry (after payment).
+  string preimage_hex = 4;
+}
+
+message CallServiceResponse {
+  // Service-specific output (JSON or binary blob).
+  bytes output_data = 1;
+
+  // "success" | "error"
+  string status = 2;
+
+  // Opaque job identifier for audit / ledger lookup.
+  string job_id = 3;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// L402 challenge — returned in the gRPC error details when payment is required.
+// ──────────────────────────────────────────────────────────────────────────────
+message PaymentRequired {
+  // BOLT11 invoice the client must pay.
+  string invoice = 1;
+
+  // Hex-encoded L402 macaroon to include on the authenticated retry.
+  string macaroon_hex = 2;
+
+  // Hex-encoded SHA256 payment hash.
+  string payment_hash = 3;
+
+  // Amount in millisatoshi.
+  int64 amount_msat = 4;
+
+  // Invoice expiry in seconds.
+  int32 expiry_sec = 5;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// PayHoldInvoice messages
+// ──────────────────────────────────────────────────────────────────────────────
+
+message PayHoldInvoiceRequest {
+  // BOLT11 invoice string to pay.
+  string invoice = 1;
+}
+
+message PayHoldInvoiceResponse {
+  bool success = 1;
+
+  // "pending" | "settled" | "failed"
+  string status = 2;
+
+  // Hex-encoded payment preimage on success.
+  string preimage = 3;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Budget messages
+// ──────────────────────────────────────────────────────────────────────────────
+
+message GetBudgetInfoRequest {}
+
+message GetBudgetInfoResponse {
+  int64 daily_limit_msat = 1;
+  int64 daily_spent_msat = 2;
+  int64 monthly_limit_msat = 3;
+  int64 monthly_spent_msat = 4;
+  int64 available_msat = 5;
+}

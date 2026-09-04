@@ -3,8 +3,9 @@ import os
 import sys
 import tempfile
 from pathlib import Path
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 
+from api.agent_registry import get_agent_registry
 from api.dependencies import DEFAULT_RELAYS
 from api.schemas.agents import RegisterAgentRequest, RegisterAgentResponse, UpdateAgentRequest, UpdateAgentResponse
 
@@ -18,37 +19,45 @@ router = APIRouter(prefix="/api/agents", tags=["agents"])
 
 
 @router.post("/register", response_model=RegisterAgentResponse, status_code=201)
-async def register_agent(req: RegisterAgentRequest):
+async def register_agent(req: RegisterAgentRequest, response: Response):
     with tempfile.TemporaryDirectory() as tmpdir:
         identity_path = os.path.join(tmpdir, "id.json")
         agent = await KuberboltAgent.create(
             identity_path=identity_path,
             relay_urls=req.relays or DEFAULT_RELAYS,
         )
-        try:
-            lightning_address = (
-                req.lightning.lightning_address or req.lightning.lnurl
-            )
-            result = await agent.register(
-                role=req.role,
-                display_name=req.display_name,
+        secret_key_hex = agent.keys.secret_key().to_hex()
+        secret_key_bech32 = agent.keys.secret_key().to_bech32()
+        lightning_address = (
+            req.lightning.lightning_address or req.lightning.lnurl
+        )
+        result = await agent.register(
+            role=req.role,
+            display_name=req.display_name,
+            about=req.about,
+            lightning_address=lightning_address,
+            service=req.service.model_dump() if req.service else None,
+        )
+        if req.picture_url:
+            profile_event = await agent.publish_profile(
+                name=req.display_name,
                 about=req.about,
-                lightning_address=lightning_address,
-                service=req.service.model_dump() if req.service else None,
+                picture=req.picture_url,
+                lud16=lightning_address,
             )
-            if req.picture_url:
-                profile_event = await agent.publish_profile(
-                    name=req.display_name,
-                    about=req.about,
-                    picture=req.picture_url,
-                    lud16=lightning_address,
-                )
-                result["profile_event_id"] = profile_event.id().to_hex()
-        finally:
-            await agent.disconnect()
+            result["profile_event_id"] = profile_event.id().to_hex()
+
+    registry = await get_agent_registry()
+    await registry.register(agent)
+
+    response.headers["X-Key-Warning"] = (
+        "This response contains a private key. Store it securely and never share it."
+    )
 
     return RegisterAgentResponse(
         agent_pubkey=result["nostr_pubkey"],
+        agent_privkey=secret_key_hex,
+        agent_nsec=secret_key_bech32,
         role=req.role,
         lightning=req.lightning,
         service=req.service,
@@ -61,24 +70,18 @@ async def register_agent(req: RegisterAgentRequest):
 
 @router.patch("/update", response_model=UpdateAgentResponse)
 async def update_agent(req: UpdateAgentRequest):
+    registry = await get_agent_registry()
+    agent = await registry.get(req.agent_pubkey)
+    if agent is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Agent '{req.agent_pubkey}' not registered in session",
+        )
+
     try:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            identity_path = os.path.join(tmpdir, "id.json")
-            agent = await KuberboltAgent.from_existing_key(
-                privkey_hex=req.agent_privkey,
-                identity_path=identity_path,
-                relay_urls=req.relays or DEFAULT_RELAYS,
-            )
-            try:
-                if agent.pubkey_hex != req.agent_pubkey:
-                    raise ValueError(
-                        "agent_pubkey does not match the provided private key"
-                    )
-                result = await agent.update_agent(
-                    updates=[u.model_dump() for u in req.updates]
-                )
-            finally:
-                await agent.disconnect()
+        result = await agent.update_agent(
+            updates=[u.model_dump() for u in req.updates]
+        )
     except KuberboltAgentNotRegisteredError as e:
         raise HTTPException(status_code=404, detail=str(e))
 

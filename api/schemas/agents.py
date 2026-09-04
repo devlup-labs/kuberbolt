@@ -43,6 +43,8 @@ class RegisterAgentRequest(BaseModel):
 
 class RegisterAgentResponse(BaseModel):
     agent_pubkey: str
+    agent_privkey: str  # hex-encoded Nostr secret key
+    agent_nsec: str     # bech32-encoded Nostr secret key 
     role: str
     lightning: LightningCredentials | None = None
     service: ServiceInfo | None = None
@@ -59,7 +61,6 @@ class UpdateField(BaseModel):
 
 class UpdateAgentRequest(BaseModel):
     agent_pubkey: str
-    agent_privkey: str
     updates: list[UpdateField]
     relays: list[str] | None = None
 

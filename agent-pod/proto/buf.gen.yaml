@@ -1,0 +1,12 @@
+version: v2
+inputs:
+  - proto_file: agent_service.proto
+plugins:
+  - remote: buf.build/protocolbuffers/go
+    out: ../financial-pod/internal/pb
+    opt:
+      - paths=source_relative
+  - remote: buf.build/grpc/go
+    out: ../financial-pod/internal/pb
+    opt:
+      - paths=source_relative

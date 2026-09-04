@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from api.agent_registry import _registry
 
 # ---------------------------------------------------------------------------
 # Fixed test data
@@ -89,9 +90,21 @@ def _build_mock_agent() -> MagicMock:
     agent = MagicMock()
     agent.pubkey_hex = FAKE_PUBKEY
 
+    mock_secret_key = MagicMock()
+    mock_secret_key.to_hex.return_value = "1" * 64
+    mock_secret_key.to_bech32.return_value = "nsec1test"
+    agent.keys.secret_key.return_value = mock_secret_key
+
     # register() -> dict
     agent.register = AsyncMock(return_value={
         "nostr_pubkey": FAKE_PUBKEY,
+        "profile_event_id": FAKE_PROFILE_EVENT_ID,
+        "listing_event_id": FAKE_LISTING_EVENT_ID,
+    })
+
+    # update_agent() -> dict
+    agent.update_agent = AsyncMock(return_value={
+        "updated_fields": ["display_name"],
         "profile_event_id": FAKE_PROFILE_EVENT_ID,
         "listing_event_id": FAKE_LISTING_EVENT_ID,
     })
@@ -100,6 +113,11 @@ def _build_mock_agent() -> MagicMock:
     mock_event = MagicMock()
     mock_event.id.return_value.to_hex.return_value = FAKE_PROFILE_EVENT_ID
     agent.publish_profile = AsyncMock(return_value=mock_event)
+
+    # publish_feedback()
+    mock_fb_event = MagicMock()
+    mock_fb_event.id.return_value.to_hex.return_value = "feedback_event_hex"
+    agent.publish_feedback = AsyncMock(return_value=mock_fb_event)
 
     # disconnect()
     agent.disconnect = AsyncMock()
@@ -132,45 +150,24 @@ def client(mock_agent):
     TestClient wired to the real FastAPI app, with KuberboltAgent mocked at
     every import boundary so no network access occurs.
     """
-    # Patch KuberboltAgent.create and from_existing_key at the agents router boundary
+    _registry._agents[FAKE_PUBKEY] = mock_agent
+
     with (
         patch("api.routers.agents.KuberboltAgent") as AgentClsAgents,
-        patch("api.routers.requests.KuberboltAgent") as AgentClsRequests,
-        patch("api.routers.requests.Keys") as MockKeys,
-        patch("api.routers.requests.SecretKey") as MockSecretKey,
-        patch("api.routers.feedback.KuberboltAgent") as AgentClsFeedback,
-        patch("api.routers.feedback.Keys") as MockFeedbackKeys,
-        patch("api.routers.feedback.SecretKey") as MockFeedbackSecretKey,
         patch("api.routers.providers.get_discovery_agent", new_callable=AsyncMock) as mock_discovery,
         patch("api.routers.search.get_discovery_agent", new_callable=AsyncMock) as mock_search_discovery,
         patch("api.routers.search.filter_providers_by_tag", new_callable=AsyncMock) as mock_tag_search,
         patch("api.main.get_discovery_agent", new_callable=AsyncMock) as mock_app_discovery,
         patch("api.main.cleanup_discovery_agent", new_callable=AsyncMock) as mock_app_cleanup,
     ):
-        # agents router: KuberboltAgent.create() -> mock_agent
         AgentClsAgents.create = AsyncMock(return_value=mock_agent)
         AgentClsAgents.from_existing_key = AsyncMock(return_value=mock_agent)
 
-        # requests router: KuberboltAgent.from_keys() -> mock_agent
-        AgentClsRequests.from_keys = AsyncMock(return_value=mock_agent)
-
-        # feedback router: KuberboltAgent.from_keys() -> mock_agent
-        AgentClsFeedback.from_keys = AsyncMock(return_value=mock_agent)
-
-        # Keys / SecretKey mocking for requests router
-        mock_keys_instance = MagicMock()
-        MockKeys.return_value = mock_keys_instance
-        MockSecretKey.parse.return_value = MagicMock()
-        MockFeedbackSecretKey.parse.return_value = MagicMock()
-        MockFeedbackKeys.return_value = MagicMock()
-
-        # discovery agent (providers + search routers)
         mock_discovery.return_value = mock_agent
         mock_search_discovery.return_value = mock_agent
         mock_app_discovery.return_value = mock_agent
         mock_app_cleanup.return_value = None
 
-        # tag search — default returns SAMPLE_TAG_SEARCH_RESULTS
         mock_tag_search.return_value = SAMPLE_TAG_SEARCH_RESULTS
 
         from api.main import app

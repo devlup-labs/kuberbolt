@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 
 class RequestEndpointRequest(BaseModel):
-    nostr_privkey: str
+    agent_pubkey: str
     provider_pubkey: str
     payload: dict[str, Any]
     timeout_seconds: int = 30
