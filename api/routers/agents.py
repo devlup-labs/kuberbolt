@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
 import os
-import sys
 import tempfile
 from pathlib import Path
 from fastapi import APIRouter, HTTPException
@@ -8,9 +7,6 @@ from fastapi import APIRouter, HTTPException
 from api.dependencies import DEFAULT_RELAYS
 from api.schemas.agents import RegisterAgentRequest, RegisterAgentResponse, UpdateAgentRequest, UpdateAgentResponse
 
-sdk_path = Path(__file__).resolve().parent.parent.parent / "sdk" / "python"
-if str(sdk_path) not in sys.path:
-    sys.path.insert(0, str(sdk_path))
 
 from nostr_sdk_wrapper.agent import AgentNotRegisteredError as KuberboltAgentNotRegisteredError, KuberboltAgent
 

@@ -3,13 +3,8 @@ import json
 import logging
 import os
 import re
-import sys
 from pathlib import Path
 
-# Ensure project root is in sys.path so 'api' package can be resolved when running directly
-project_root = Path(__file__).resolve().parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware

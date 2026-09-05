@@ -1,4 +1,3 @@
-import sys
 from pathlib import Path
 
 from fastapi import APIRouter
@@ -8,9 +7,6 @@ from api.dependencies import DEFAULT_RELAYS
 from api.errors import InvalidPrivkeyError
 from api.schemas.feedback import CreateFeedbackRequest, CreateFeedbackResponse
 
-sdk_path = Path(__file__).resolve().parent.parent.parent / "sdk" / "python"
-if str(sdk_path) not in sys.path:
-    sys.path.insert(0, str(sdk_path))
 
 from nostr_sdk_wrapper.agent import KuberboltAgent
 

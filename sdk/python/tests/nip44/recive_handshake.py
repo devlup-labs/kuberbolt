@@ -13,14 +13,9 @@ Usage:
 
 import argparse
 import asyncio
-import sys
 from pathlib import Path
 
-# Add the nostr directory to sys.path to find kuberbolt_nostr
 _script_dir = Path(__file__).parent.parent
-_nostr_dir = _script_dir / "nostr"
-if str(_nostr_dir) not in sys.path:
-    sys.path.insert(0, str(_nostr_dir))
 
 from kuberbolt_nostr import KuberboltAgent
 

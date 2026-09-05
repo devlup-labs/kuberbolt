@@ -1,12 +1,7 @@
 import os
-import sys
 import tempfile
 from pathlib import Path
 
-# Ensure sdk/python is in sys.path so nostr_sdk_wrapper can be imported
-sdk_path = Path(__file__).resolve().parent.parent / "sdk" / "python"
-if str(sdk_path) not in sys.path:
-    sys.path.insert(0, str(sdk_path))
 
 try:
     from nostr_sdk_wrapper.agent import KuberboltAgent

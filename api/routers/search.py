@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 from fastapi import APIRouter, Query
@@ -12,9 +11,6 @@ from api.normalize import normalize_tag
 from api.schemas.search import SearchProviderItem, SearchProvidersResponse
 
 # Ensure the client discovery module is importable
-client_path = Path(__file__).resolve().parent.parent.parent / "client"
-if str(client_path) not in sys.path:
-    sys.path.insert(0, str(client_path))
 
 from kuberbolt.discovery.nostr.filter_providers_by_tag import filter_providers_by_tag
 

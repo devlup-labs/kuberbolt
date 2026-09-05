@@ -1,0 +1,79 @@
+version: '3'
+
+services:
+  bitcoind:
+    image: lncm/bitcoind:v24.0
+    container_name: bitcoind
+    command:
+      - -regtest=1
+      - -rpcallowip=0.0.0.0/0
+      - -rpcbind=0.0.0.0
+      - -rpcuser=devuser
+      - -rpcpassword=devpass
+      - -fallbackfee=0.0002
+      - -txindex=1
+      - -zmqpubrawblock=tcp://0.0.0.0:28332
+      - -zmqpubrawtx=tcp://0.0.0.0:28333
+    ports:
+      - "18443:18443"
+      - "28332:28332"
+      - "28333:28333"
+
+  alice:
+    image: lightninglabs/lnd:v0.17.4-beta
+    container_name: alice
+    command:
+      - --noseedbackup
+      - --trickledelay=5000
+      - --alias=alice
+      - --bitcoin.active
+      - --bitcoin.regtest
+      - --bitcoin.node=bitcoind
+      - --bitcoind.rpchost=bitcoind:18443
+      - --bitcoind.rpcuser=devuser
+      - --bitcoind.rpcpass=devpass
+      - --bitcoind.zmqpubrawblock=tcp://bitcoind:28332
+      - --bitcoind.zmqpubrawtx=tcp://bitcoind:28333
+      - --rpclisten=0.0.0.0:10009
+      - --restlisten=0.0.0.0:8080
+      - --listen=0.0.0.0:9735
+      - --tlsextradomain=alice
+      - --tlsextradomain=localhost
+    ports:
+      - "10001:10009"
+      - "8081:8080"
+      - "9735:9735"
+    volumes:
+      - ./alice-data:/root/.lnd
+    depends_on:
+      - bitcoind
+
+  bob:
+    image: lightninglabs/lnd:v0.17.4-beta
+    container_name: bob
+    command:
+      - --noseedbackup
+      - --trickledelay=5000
+      - --alias=bob
+      - --bitcoin.active
+      - --bitcoin.regtest
+      - --bitcoin.node=bitcoind
+      - --bitcoind.rpchost=bitcoind:18443
+      - --bitcoind.rpcuser=devuser
+      - --bitcoind.rpcpass=devpass
+      - --bitcoind.zmqpubrawblock=tcp://bitcoind:28332
+      - --bitcoind.zmqpubrawtx=tcp://bitcoind:28333
+      - --rpclisten=0.0.0.0:10009
+      - --restlisten=0.0.0.0:8080
+      - --listen=0.0.0.0:9735
+      - --tlsextradomain=bob
+      - --tlsextradomain=localhost
+    ports:
+      - "10002:10009"
+      - "8082:8080"
+      - "9736:9735"
+    volumes:
+      - ./bob-data:/root/.lnd
+    depends_on:
+      - bitcoind
+

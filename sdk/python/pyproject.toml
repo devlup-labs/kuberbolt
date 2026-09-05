@@ -1,9 +1,11 @@
 [project]
-name = "kuberbolt-tanay"
+name = "kuberbolt-sdk"
 version = "0.1.0"
-description = "Add your description here"
+description = "Kuberbolt Python SDK — Nostr identity, discovery, and endpoint negotiation"
 readme = "README.md"
 requires-python = ">=3.12"
+license = { text = "MIT" }
+keywords = ["nostr", "lightning", "l402", "agents"]
 dependencies = [
     "nostr-sdk>=0.45",
 ]
@@ -11,4 +13,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8",
+    "pytest-asyncio>=0.23",
 ]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"

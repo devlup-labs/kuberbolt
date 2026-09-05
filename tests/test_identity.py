@@ -1,9 +1,7 @@
 import os
-import sys
 import tempfile
 from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from nostr_sdk import Metadata, MetadataRecord
 from client.kuberbolt.discovery.nostr import generate_identity, get_or_create_identity

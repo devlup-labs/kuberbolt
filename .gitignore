@@ -1,4 +1,4 @@
-# Go
+# ── Go ─────────────────────────────────────────────────────────────────────────
 gatekeeper/gatekeeper
 gatekeeper/cfo
 *.exe
@@ -9,13 +9,20 @@ gatekeeper/cfo
 *.test
 *.out
 
+# ── SQLite Ledger (per-pod private data — must NEVER be committed) ───────────
 ledger.db
+*.db
+*.sqlite
+*.sqlite3
 
-# Python
+# ── Lightning Infrastructure (node data dirs contain private keys + macaroons) ─
+lightning-infra/alice-data/
+lightning-infra/bob-data/
+
+# ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
 .Python
 build/
 develop-eggs/
@@ -35,7 +42,7 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-# Environment
+# ── Environment & Secrets ─────────────────────────────────────────────────────
 .env
 examples/*_identity.json
 sdk/python/tests/nip44/my_identity.json
@@ -46,7 +53,7 @@ ENV/
 env.bak/
 venv.bak/
 
-# IDEs
+# ── IDEs ──────────────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp

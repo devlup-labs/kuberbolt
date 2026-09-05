@@ -1,11 +1,7 @@
 import asyncio
 import os
-import sys
 from pathlib import Path
 
-sdk_path = Path(__file__).resolve().parent.parent / "sdk" / "python"
-if str(sdk_path) not in sys.path:
-    sys.path.insert(0, str(sdk_path))
 
 from nostr_sdk_wrapper.agent import KuberboltAgent
 from config import get_int_env, get_relays, load_env_file, require_env
