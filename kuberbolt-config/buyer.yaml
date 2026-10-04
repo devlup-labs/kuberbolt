@@ -1,0 +1,31 @@
+agent:
+  name: buyer
+  role: client
+  nostr_priv_key: "79508ca06779b9f607343621b1679aa89fc433f234b84e6daaf99f4549069878"
+
+services: []
+
+network:
+  grpc_port: 6001
+  public_host: 127.0.0.1
+  nostr_relays:
+    - wss://relay.damus.io
+    - wss://nos.lol
+
+brain:
+  url: http://127.0.0.1:8001
+
+lightning:
+  network: regtest
+  lnd_host: 127.0.0.1
+  lnd_grpc_port: 10009
+  tls_cert_path: C:/Users/hasit/OneDrive/Desktop/kuberbolt/kuberbolt-config/tls.cert
+  macaroon_path: C:/Users/hasit/OneDrive/Desktop/kuberbolt/kuberbolt-config/admin.macaroon
+
+budget:
+  daily_limit_msat: 100000000
+  monthly_limit_msat: 3000000000
+
+logging:
+  level: info
+  format: console

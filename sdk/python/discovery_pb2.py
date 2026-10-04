@@ -22,20 +22,18 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 _sym_db = _symbol_database.Default()
 
 
-
-
 DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0f\x64iscovery.proto\x12\x16kuberbolt.discovery.v1\"G\n\x13PeerHandoverRequest\x12\x17\n\x0fpeer_a_endpoint\x18\x01 \x01(\t\x12\x17\n\x0fpeer_b_endpoint\x18\x02 \x01(\t\"8\n\x14PeerHandoverResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t2y\n\x0bNodeManager\x12j\n\rHandoverPeers\x12+.kuberbolt.discovery.v1.PeerHandoverRequest\x1a,.kuberbolt.discovery.v1.PeerHandoverResponseB6Z4github.com/kuberbolt/agent-pod/daemon/internal/pb;pbb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'discovery_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
-  _globals['DESCRIPTOR']._loaded_options = None
-  _globals['DESCRIPTOR']._serialized_options = b'Z4github.com/kuberbolt/agent-pod/daemon/internal/pb;pb'
-  _globals['_PEERHANDOVERREQUEST']._serialized_start=43
-  _globals['_PEERHANDOVERREQUEST']._serialized_end=114
-  _globals['_PEERHANDOVERRESPONSE']._serialized_start=116
-  _globals['_PEERHANDOVERRESPONSE']._serialized_end=172
-  _globals['_NODEMANAGER']._serialized_start=174
-  _globals['_NODEMANAGER']._serialized_end=295
+    _globals['DESCRIPTOR']._loaded_options = None
+    _globals['DESCRIPTOR']._serialized_options = b'Z4github.com/kuberbolt/agent-pod/daemon/internal/pb;pb'
+    _globals['_PEERHANDOVERREQUEST']._serialized_start = 43
+    _globals['_PEERHANDOVERREQUEST']._serialized_end = 114
+    _globals['_PEERHANDOVERRESPONSE']._serialized_start = 116
+    _globals['_PEERHANDOVERRESPONSE']._serialized_end = 172
+    _globals['_NODEMANAGER']._serialized_start = 174
+    _globals['_NODEMANAGER']._serialized_end = 295
 # @@protoc_insertion_point(module_scope)

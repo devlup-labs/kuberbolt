@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kuberbolt/financial-pod/internal/brain"
 	"github.com/kuberbolt/financial-pod/internal/cache"
 	"github.com/kuberbolt/financial-pod/internal/l402"
 	"github.com/kuberbolt/financial-pod/internal/ledger"
@@ -35,6 +36,7 @@ type ProviderSide struct {
 	invoices   *cache.InvoiceCache
 	db         *ledger.DB
 	logger     *zap.Logger
+	compute    brain.Client
 
 	// servicePriceMSat is the price charged per CallService request.
 	// In production this would vary per service kind.
@@ -48,7 +50,12 @@ func newProviderSide(
 	db *ledger.DB,
 	servicePriceMSat int64,
 	logger *zap.Logger,
+	compute ...brain.Client,
 ) *ProviderSide {
+	var computeClient brain.Client = echoCompute{}
+	if len(compute) > 0 && compute[0] != nil {
+		computeClient = compute[0]
+	}
 	return &ProviderSide{
 		lnd:              lnd,
 		macManager:       macManager,
@@ -56,14 +63,15 @@ func newProviderSide(
 		db:               db,
 		servicePriceMSat: servicePriceMSat,
 		logger:           logger,
+		compute:          computeClient,
 	}
 }
 
 // HandleCallService is the entry point for every inbound CallService request.
 // It implements the HODL L402 state machine:
 //
-//	 No macaroon → issue 402 challenge (HODL invoice + macaroon)
-//	 Macaroon present → verify HMAC + wait for HTLC ACCEPTED → compute → settle
+//	No macaroon → issue 402 challenge (HODL invoice + macaroon)
+//	Macaroon present → verify HMAC + wait for HTLC ACCEPTED → compute → settle
 //
 // Note: the client does NOT send a preimage on the authenticated retry.
 // Payment is confirmed by watching the LND invoice state (HTLC ACCEPTED),
@@ -125,6 +133,7 @@ func (p *ProviderSide) issueL402Challenge(ctx context.Context) error {
 
 	// 4. Store the preimage (secret) in the in-memory cache.
 	p.invoices.Set(jobID, &cache.Entry{
+		JobID:         jobID,
 		Invoice:       payReq,
 		RHash:         rhashBytes,
 		RHashHex:      rhashHex,
@@ -158,6 +167,14 @@ func (p *ProviderSide) issueL402Challenge(ctx context.Context) error {
 	}); err != nil {
 		p.logger.Warn("failed to record payment hold", zap.Error(err))
 	}
+
+	fmt.Printf("\n⚡ [L402 CHALLENGE] Invoice created for Buyer -> Amount: %d sats (%d mSat) | Hash: %s\n\n",
+		p.servicePriceMSat/1000, p.servicePriceMSat, shortStr(rhashHex, 20))
+
+	p.logger.Info("⚡ [L402 CHALLENGE] Created HODL invoice for incoming service call",
+		zap.String("payment_hash", shortStr(rhashHex, 16)),
+		zap.Int64("amount_msat", p.servicePriceMSat),
+	)
 
 	// 7. Return the challenge as a structured error. The gRPC interceptor
 	//    wraps this into a PermissionDenied status with PaymentRequired details.
@@ -239,22 +256,36 @@ func (p *ProviderSide) handleAuthenticatedRequest(
 		return nil, fmt.Errorf("provider: HTLC was not locked (payment not received)")
 	}
 
-	p.logger.Info("HTLC accepted — funds locked, running compute",
-		zap.String("rhash", rhashHex[:12]+"…"),
+	fmt.Printf("\n"+
+		"╔══════════════════════════════════════════════════════════════════════╗\n"+
+		"║ 🔒 HTLC LOCKED — BUYER PAYMENT RECEIVED & HELD                       ║\n"+
+		"║  Amount:       %-50s    ║\n"+
+		"║  Payment Hash: %-50s    ║\n"+
+		"║  Status:       Funds secured in channel -> Executing AI Compute...   ║\n"+
+		"╚══════════════════════════════════════════════════════════════════════╝\n\n",
+		fmt.Sprintf("%d sats (%d mSat)", p.servicePriceMSat/1000, p.servicePriceMSat),
+		shortStr(rhashHex, 24),
+	)
+
+	p.logger.Info("🔒 [HTLC LOCKED] Buyer payment received & locked in channel — executing compute...",
+		zap.String("payment_hash", shortStr(rhashHex, 16)),
+		zap.Int64("amount_msat", p.servicePriceMSat),
 	)
 
 	// 7. Run compute. On failure → cancel invoice → client gets refund.
-	result, computeErr := p.runCompute(ctx, req.JobSpec)
+	result, computeErr := p.compute.Compute(ctx, req.ServiceKind, req.JobSpec)
 	if computeErr != nil {
 		p.logger.Error("compute failed, cancelling HODL invoice",
 			zap.Error(computeErr),
-			zap.String("rhash", rhashHex[:12]+"…"),
+			zap.String("rhash", shortStr(rhashHex, 12)),
 		)
 		if err := p.lnd.CancelInvoice(ctx, rhashBytes); err != nil {
 			p.logger.Error("failed to cancel invoice after compute failure",
 				zap.Error(err))
 		}
-		_ = p.db.UpdateStatus(cached.RHashHex, "cancelled")
+		if err := p.db.UpdateStatusByPaymentHash(cached.RHashHex, "cancelled"); err != nil {
+			p.logger.Warn("failed to update ledger status to cancelled", zap.Error(err))
+		}
 		p.invoices.DeleteByRHash(cached.RHashHex)
 		return nil, fmt.Errorf("provider: compute failed, invoice cancelled: %w", computeErr)
 	}
@@ -263,18 +294,31 @@ func (p *ProviderSide) handleAuthenticatedRequest(
 	if err := p.lnd.SettleInvoice(ctx, cached.Preimage); err != nil {
 		p.logger.Error("failed to settle invoice after successful compute",
 			zap.Error(err),
-			zap.String("rhash", rhashHex[:12]+"…"),
+			zap.String("rhash", shortStr(rhashHex, 12)),
 		)
-		// We cannot cancel here — compute was done. Log and return result anyway.
-		// A retry of SettleInvoice should be added in production.
-	} else {
-		p.logger.Info("HODL invoice settled — funds received",
-			zap.String("rhash", rhashHex[:12]+"…"),
-		)
+		return nil, fmt.Errorf("provider: settle invoice: %w", err)
 	}
 
+	fmt.Printf("\n"+
+		"╔══════════════════════════════════════════════════════════════════════╗\n"+
+		"║ 💰 PAYMENT SETTLED — FUNDS CLAIMED VIA PREIMAGE                     ║\n"+
+		"║  Amount:       %-50s    ║\n"+
+		"║  Payment Hash: %-50s    ║\n"+
+		"║  Status:       Invoice settled on Lightning -> Compute returned!      ║\n"+
+		"╚══════════════════════════════════════════════════════════════════════╝\n\n",
+		fmt.Sprintf("%d sats (%d mSat)", p.servicePriceMSat/1000, p.servicePriceMSat),
+		shortStr(rhashHex, 24),
+	)
+
+	p.logger.Info("💰 [PAYMENT SETTLED] Preimage revealed, payment completed",
+		zap.String("payment_hash", shortStr(rhashHex, 16)),
+		zap.Int64("amount_msat", p.servicePriceMSat),
+	)
+
 	// 9. Update ledger to settled.
-	_ = p.db.UpdateStatus(cached.RHashHex, "settled")
+	if err := p.db.UpdateStatusByPaymentHash(cached.RHashHex, "settled"); err != nil {
+		p.logger.Warn("failed to update ledger status to settled", zap.Error(err))
+	}
 	p.invoices.DeleteByRHash(cached.RHashHex)
 
 	return &pb.CallServiceResponse{
@@ -283,12 +327,13 @@ func (p *ProviderSide) handleAuthenticatedRequest(
 	}, nil
 }
 
-// runCompute is the stub that the Agent implements in production.
-// For now it echoes the job spec back to demonstrate the flow works end-to-end.
-func (p *ProviderSide) runCompute(_ context.Context, jobSpec []byte) ([]byte, error) {
+// echoCompute preserves the deterministic unit-test setup. Production servers
+// use the configured private Brain client instead.
+type echoCompute struct{}
+
+func (echoCompute) Compute(_ context.Context, _ string, jobSpec []byte) ([]byte, error) {
 	if len(jobSpec) == 0 {
 		return []byte(`{"result":"ok","note":"empty job spec"}`), nil
 	}
-	// In production: forward jobSpec to the agent brain and wait for result.
 	return jobSpec, nil
 }

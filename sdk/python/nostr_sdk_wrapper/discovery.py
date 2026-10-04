@@ -34,7 +34,8 @@ from datetime import timedelta
 
 from nostr_sdk import Client, Event, EventBuilder, Filter, Keys, Kind, PublicKey, ReqTarget, Tag
 
-KIND_SERVICE_LISTING = 31990   # NIP-89 handler recommendation / parameterized replaceable
+# NIP-89 handler recommendation / parameterized replaceable
+KIND_SERVICE_LISTING = 31990
 KIND_JOB_REQUEST = 5202        # NIP-90 (unrecommended) DVM-style job request
 KIND_JOB_FEEDBACK = 7000       # NIP-90 (unrecommended) job feedback / status
 
@@ -54,7 +55,7 @@ def normalize_tag(tag: str) -> str:
 
 
 async def find_by_hashtag(client: Client, tag: str, kinds: list[int] | None = None,
-                           limit: int = 50, timeout_secs: int = 8) -> list[TaggedEvent]:
+                          limit: int = 50, timeout_secs: int = 8) -> list[TaggedEvent]:
     """Find events tagged with a given hashtag (NIP-12 '#t' filter) -- the
     realistic way to discover 'service providers' or anyone self-tagging
     with a capability/topic on real public relays. If `kinds` is omitted,
@@ -81,7 +82,7 @@ async def find_by_hashtag(client: Client, tag: str, kinds: list[int] | None = No
 
 
 async def query_service_listings(client: Client, capability_tag: str,
-                                  limit: int = 50, timeout_secs: int = 8) -> list[Event]:
+                                 limit: int = 50, timeout_secs: int = 8) -> list[Event]:
     """PULL discovery via NIP-89 handler listings (kind 31990). Left for
     reference -- expect very few/no real results, see module docstring.
     Also note: real kind:31990 events are filtered by a 'k' tag (the event
@@ -93,7 +94,7 @@ async def query_service_listings(client: Client, capability_tag: str,
 
 
 async def publish_job_request(client: Client, requester_keys: Keys,
-                               capability_tag: str, params: dict) -> Event:
+                              capability_tag: str, params: dict) -> Event:
     """PUSH discovery: broadcast a job request (kind 5202) and let interested
     merchants respond."""
     content = json.dumps(params, separators=(",", ":"))
@@ -130,7 +131,8 @@ async def fetch_profile(client: Client, pubkey: PublicKey, timeout_secs: int = 5
 async def fetch_existing_profile(client: Client, pubkey_hex: str, timeout_secs: int = 5) -> Event | None:
     """Fetch the latest kind:0 profile for an agent."""
     events = await client.fetch_events(
-        ReqTarget.auto([Filter().kind(Kind(0)).author(PublicKey.parse(pubkey_hex)).limit(1)]),
+        ReqTarget.auto([Filter().kind(Kind(0)).author(
+            PublicKey.parse(pubkey_hex)).limit(1)]),
         timedelta(seconds=timeout_secs),
     )
     return events[0] if events else None
@@ -140,9 +142,9 @@ async def fetch_existing_listing(client: Client, pubkey_hex: str, timeout_secs: 
     """Fetch the latest service listing published by an agent."""
     events = await client.fetch_events(
         ReqTarget.auto([
-            Filter().kind(Kind(KIND_SERVICE_LISTING)).author(PublicKey.parse(pubkey_hex)).limit(1)
+            Filter().kind(Kind(KIND_SERVICE_LISTING)).author(
+                PublicKey.parse(pubkey_hex)).limit(1)
         ]),
         timedelta(seconds=timeout_secs),
     )
     return events[0] if events else None
-

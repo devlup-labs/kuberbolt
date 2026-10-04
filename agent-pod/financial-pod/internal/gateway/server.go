@@ -6,6 +6,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/kuberbolt/financial-pod/internal/brain"
 	"github.com/kuberbolt/financial-pod/internal/budget"
 	"github.com/kuberbolt/financial-pod/internal/cache"
 	"github.com/kuberbolt/financial-pod/internal/config"
@@ -15,6 +16,9 @@ import (
 	"github.com/kuberbolt/financial-pod/internal/pb"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 // ErrPaymentRequired is returned by ProviderSide when a request lacks credentials.
@@ -37,6 +41,8 @@ func (e *ErrPaymentRequired) Error() string {
 //   - RequesterSide: makes outbound L402 payments to other pods
 //   - gRPC server: listens for incoming connections
 type Server struct {
+	pb.UnimplementedFinancialPodServiceServer
+
 	cfg       *config.Config
 	logger    *zap.Logger
 	lnd       ln.ClientInterface
@@ -89,7 +95,13 @@ func NewServer(ctx context.Context, cfg *config.Config, logger *zap.Logger) (*Se
 		servicePriceMSat = cfg.Services[0].PriceMSat
 	}
 
-	provider := newProviderSide(lndClient, macMgr, invoices, db, servicePriceMSat, logger)
+	brainClient, err := brain.NewHTTPClient(cfg.Brain.URL)
+	if err != nil {
+		db.Close()
+		lndClient.Close()
+		return nil, fmt.Errorf("gateway: configure Brain client: %w", err)
+	}
+	provider := newProviderSide(lndClient, macMgr, invoices, db, servicePriceMSat, logger, brainClient)
 	requester := newRequesterSide(lndClient, bm, db, logger)
 
 	return &Server{
@@ -117,9 +129,7 @@ func (s *Server) Start(ctx context.Context) error {
 		grpc.UnaryInterceptor(s.l402Interceptor),
 	)
 
-	// Register the CallService handler using a minimal service descriptor.
-	// In Phase 3 this will be replaced with proper generated gRPC server.
-	s.grpc.RegisterService(&financialPodServiceDesc, s)
+	pb.RegisterFinancialPodServiceServer(s.grpc, s)
 
 	go func() {
 		s.logger.Info("gRPC server listening", zap.String("addr", addr))
@@ -141,13 +151,30 @@ func (s *Server) l402Interceptor(
 	info *grpc.UnaryServerInfo,
 	handler grpc.UnaryHandler,
 ) (interface{}, error) {
+	start := time.Now()
 	switch info.FullMethod {
 	case "/kuberbolt.v1.FinancialPodService/GetBudgetInfo",
 		"/kuberbolt.v1.FinancialPodService/GetChannelInfo",
 		"/kuberbolt.v1.FinancialPodService/PayHoldInvoice":
-		return handler(ctx, req)
+		response, err := handler(ctx, req)
+		s.logRPC(info.FullMethod, start, err)
+		return response, err
 	}
-	return handler(ctx, req)
+	response, err := handler(ctx, req)
+	s.logRPC(info.FullMethod, start, err)
+	return response, err
+}
+
+func (s *Server) logRPC(method string, start time.Time, err error) {
+	fields := []zap.Field{
+		zap.String("method", method),
+		zap.Duration("duration", time.Since(start)),
+	}
+	if err != nil {
+		s.logger.Error("gRPC RPC failed", append(fields, zap.Error(err))...)
+		return
+	}
+	s.logger.Info("gRPC RPC completed", fields...)
 }
 
 // backgroundTasks runs periodic maintenance: cache cleanup.
@@ -183,7 +210,16 @@ func (s *Server) Stop(_ context.Context) error {
 // CallService routes an inbound request through the provider-side L402 handler.
 // Implements financialPodServiceServer.
 func (s *Server) CallService(ctx context.Context, req *pb.CallServiceRequest) (*pb.CallServiceResponse, error) {
-	return s.provider.HandleCallService(ctx, req)
+	if req.ProviderEndpoint != "" {
+		forwarded := proto.Clone(req).(*pb.CallServiceRequest)
+		forwarded.ProviderEndpoint = ""
+		return s.requester.CallProvider(ctx, req.ProviderEndpoint, forwarded)
+	}
+	response, err := s.provider.HandleCallService(ctx, req)
+	if paymentRequired, ok := err.(*ErrPaymentRequired); ok {
+		return nil, paymentRequiredStatus(paymentRequired)
+	}
+	return response, err
 }
 
 // PayHoldInvoice triggers an outgoing payment from this node's wallet.
@@ -211,51 +247,32 @@ func (s *Server) GetBudgetInfo(_ context.Context, _ *pb.GetBudgetInfoRequest) (*
 	}, nil
 }
 
-// financialPodServiceServer is the interface the Server fulfils for gRPC registration.
-type financialPodServiceServer interface {
-	CallService(context.Context, *pb.CallServiceRequest) (*pb.CallServiceResponse, error)
-	PayHoldInvoice(context.Context, *pb.PayHoldInvoiceRequest) (*pb.PayHoldInvoiceResponse, error)
-	GetBudgetInfo(context.Context, *pb.GetBudgetInfoRequest) (*pb.GetBudgetInfoResponse, error)
+// GetChannelInfo returns readiness data (e.g., LND chain sync status).
+func (s *Server) GetChannelInfo(ctx context.Context, _ *pb.GetChannelInfoRequest) (*pb.GetChannelInfoResponse, error) {
+	info, err := s.lnd.GetInfo(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("LND not ready: %w", err)
+	}
+	return &pb.GetChannelInfoResponse{
+		SyncedToChain: info.SyncedToChain,
+	}, nil
 }
 
-// financialPodServiceDesc is the minimal gRPC service descriptor, replacing protoc output.
-var financialPodServiceDesc = grpc.ServiceDesc{
-	ServiceName: "kuberbolt.v1.FinancialPodService",
-	HandlerType: (*financialPodServiceServer)(nil),
-	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "CallService",
-			Handler: func(srv interface{}, ctx context.Context, dec func(interface{}) error, _ grpc.UnaryServerInterceptor) (interface{}, error) {
-				var req pb.CallServiceRequest
-				if err := dec(&req); err != nil {
-					return nil, err
-				}
-				return srv.(financialPodServiceServer).CallService(ctx, &req)
-			},
-		},
-		{
-			MethodName: "PayHoldInvoice",
-			Handler: func(srv interface{}, ctx context.Context, dec func(interface{}) error, _ grpc.UnaryServerInterceptor) (interface{}, error) {
-				var req pb.PayHoldInvoiceRequest
-				if err := dec(&req); err != nil {
-					return nil, err
-				}
-				return srv.(financialPodServiceServer).PayHoldInvoice(ctx, &req)
-			},
-		},
-		{
-			MethodName: "GetBudgetInfo",
-			Handler: func(srv interface{}, ctx context.Context, dec func(interface{}) error, _ grpc.UnaryServerInterceptor) (interface{}, error) {
-				var req pb.GetBudgetInfoRequest
-				if err := dec(&req); err != nil {
-					return nil, err
-				}
-				return srv.(financialPodServiceServer).GetBudgetInfo(ctx, &req)
-			},
-		},
-	},
-	Streams:  []grpc.StreamDesc{},
-	Metadata: "agent_service.proto",
+// paymentRequiredStatus is the network-safe representation of an L402
+// challenge. A Go error value cannot cross a gRPC connection by itself.
+func paymentRequiredStatus(err *ErrPaymentRequired) error {
+	st := status.New(codes.PermissionDenied, "payment required")
+	withDetails, detailsErr := st.WithDetails(&pb.PaymentRequired{
+		Invoice:     err.Invoice,
+		MacaroonHex: err.MacaroonHex,
+		PaymentHash: err.PaymentHash,
+		AmountMsat:  err.AmountMSat,
+		ExpirySec:   err.ExpirySec,
+	})
+	if detailsErr != nil {
+		return st.Err()
+	}
+	return withDetails.Err()
 }
 
 // deriveRootKey produces a 32-byte macaroon signing key from the agent's hex private key.

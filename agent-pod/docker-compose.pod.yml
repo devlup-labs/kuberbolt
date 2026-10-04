@@ -1,0 +1,43 @@
+version: "3.8"
+
+services:
+  financial-pod:
+    build:
+      context: ./financial-pod
+      dockerfile: Dockerfile
+    command: ["financialpod", "--config", "/config/config.yaml"]
+    volumes:
+      - ./config/${AGENT_NAME:-default}:/config:ro
+      - ledger-data:/data
+    ports:
+      - "${GRPC_PORT:-6001}:6001"
+    environment:
+      - BRAIN_ADDR=${BRAIN_ADDR:-host.docker.internal:50052}
+    depends_on:
+      lnd-node:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=:6001"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  lnd-node:
+    image: lightninglabs/lnd:v0.17.0-beta
+    command: ["lnd", "--configfile=/config/lnd.conf"]
+    volumes:
+      - ./config/${AGENT_NAME:-default}/lnd:/config:ro
+      - lnd-data:/root/.lnd
+    ports:
+      - "${LND_GRPC_PORT:-10009}:10009"
+      - "${LND_REST_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "lncli", "--rpcserver=localhost:10009", "getinfo"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  ledger-data:
+  lnd-data:
+

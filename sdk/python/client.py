@@ -1,12 +1,14 @@
 """
 client.py — KuberBolt Discovery Scout (bootstrap phase).
 
-Connects to the Go daemon on localhost:50051 via an insecure gRPC channel
-and hands over two hardcoded dummy peer endpoints.  The daemon logs them
-and returns an acknowledgement.
+Connects to the Go daemon via an insecure gRPC channel and hands over peer
+endpoints supplied by the environment or command line.
 
 No Nostr relay integration, no real peer discovery — that comes later.
 """
+
+import argparse
+import os
 
 import grpc
 
@@ -15,30 +17,32 @@ import discovery_pb2 as pb
 import discovery_pb2_grpc as pb_grpc
 
 
-# ── Hardcoded dummy peer endpoints (placeholder) ────────────────────────────
-# In a later phase these will come from Nostr relay discovery.
-PEER_A_ENDPOINT = "192.168.1.10:8001"
-PEER_B_ENDPOINT = "10.0.0.5:9002"
-
-# ── Daemon address (bootstrap: localhost, insecure) ─────────────────────────
-DAEMON_ADDR = "localhost:50051"
-
-
 def main() -> None:
-    """Send the dummy peer endpoints to the Go daemon and print the response."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--daemon-addr", default=os.getenv("DAEMON_ADDR"))
+    parser.add_argument("--peer-a", default=os.getenv("PEER_A_ENDPOINT"))
+    parser.add_argument("--peer-b", default=os.getenv("PEER_B_ENDPOINT"))
+    args = parser.parse_args()
+    missing = [name for name, value in {
+        "DAEMON_ADDR/--daemon-addr": args.daemon_addr,
+        "PEER_A_ENDPOINT/--peer-a": args.peer_a,
+        "PEER_B_ENDPOINT/--peer-b": args.peer_b,
+    }.items() if not value]
+    if missing:
+        parser.error("missing configuration: " + ", ".join(missing))
 
     # Insecure channel — no TLS for this bootstrap phase.
-    channel = grpc.insecure_channel(DAEMON_ADDR)
+    channel = grpc.insecure_channel(args.daemon_addr)
     stub = pb_grpc.NodeManagerStub(channel)
 
     request = pb.PeerHandoverRequest(
-        peer_a_endpoint=PEER_A_ENDPOINT,
-        peer_b_endpoint=PEER_B_ENDPOINT,
+        peer_a_endpoint=args.peer_a,
+        peer_b_endpoint=args.peer_b,
     )
 
-    print(f"[Scout] Sending peers to daemon at {DAEMON_ADDR}")
-    print(f"  Peer A: {PEER_A_ENDPOINT}")
-    print(f"  Peer B: {PEER_B_ENDPOINT}")
+    print(f"[Scout] Sending peers to daemon at {args.daemon_addr}")
+    print(f"  Peer A: {args.peer_a}")
+    print(f"  Peer B: {args.peer_b}")
 
     try:
         response: pb.PeerHandoverResponse = stub.HandoverPeers(request)

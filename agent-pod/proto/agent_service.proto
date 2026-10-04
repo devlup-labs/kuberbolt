@@ -19,6 +19,19 @@ service FinancialPodService {
 
   // GetBudgetInfo returns current daily/monthly spend counters.
   rpc GetBudgetInfo(GetBudgetInfoRequest) returns (GetBudgetInfoResponse);
+
+  // GetChannelInfo returns readiness data (e.g. LND chain sync status) for health checks.
+  rpc GetChannelInfo(GetChannelInfoRequest) returns (GetChannelInfoResponse);
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Readiness & Health messages
+// ──────────────────────────────────────────────────────────────────────────────
+
+message GetChannelInfoRequest {}
+
+message GetChannelInfoResponse {
+  bool synced_to_chain = 1;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -37,6 +50,9 @@ message CallServiceRequest {
 
   // Present only on the authenticated retry (after payment).
   string preimage_hex = 4;
+
+  // Set by a buyer's local Financial Pod to route the request to a provider.
+  string provider_endpoint = 5;
 }
 
 message CallServiceResponse {

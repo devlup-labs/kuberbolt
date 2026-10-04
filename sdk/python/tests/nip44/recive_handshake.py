@@ -11,13 +11,13 @@ Usage:
     python3 receive_handshake.py --listen-secs 60   # listen longer
 """
 
+from kuberbolt_nostr import KuberboltAgent
 import argparse
 import asyncio
 from pathlib import Path
 
 _script_dir = Path(__file__).parent.parent
 
-from kuberbolt_nostr import KuberboltAgent
 
 RELAYS = [
     "wss://relay.damus.io",
@@ -30,9 +30,9 @@ RELAYS = [
 async def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--listen-secs", type=int, default=30,
-                         help="How long to listen for incoming handshakes (default: 30)")
+                        help="How long to listen for incoming handshakes (default: 30)")
     parser.add_argument("--identity-path", default="my_identity.json",
-                         help="Where to store/load this agent's identity (default: my_identity.json)")
+                        help="Where to store/load this agent's identity (default: my_identity.json)")
     args = parser.parse_args()
 
     agent = await KuberboltAgent.create(
@@ -52,7 +52,8 @@ async def main():
         await agent.disconnect()
         return
 
-    print(f"\nListening for {args.listen_secs}s for incoming handshake messages...\n")
+    print(
+        f"\nListening for {args.listen_secs}s for incoming handshake messages...\n")
     replies = await agent.fetch_handshake_replies(timeout_secs=args.listen_secs)
 
     if not replies:

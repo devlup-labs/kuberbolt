@@ -1,0 +1,36 @@
+agent:
+  name: seller
+  role: provider
+  nostr_priv_key: "51d707a847379cd7e89efd9f375dd60e0442936ae5105f4d182a9b6ec496e617"
+
+services:
+  - name: text-summarization
+    kind: 0
+    description: Text summarization
+    price_msat: 100000
+    timeout_sec: 120
+
+network:
+  grpc_port: 6001
+  public_host: 172.31.41.172
+  nostr_relays:
+    - wss://relay.damus.io
+    - wss://nos.lol
+
+brain:
+  url: http://127.0.0.1:8001
+
+lightning:
+  network: regtest
+  lnd_host: 127.0.0.1
+  lnd_grpc_port: 10004
+  tls_cert_path: /Users/tanaybhatt/kuberbolt-lnd/seller-lnd-data-fresh/tls.cert
+  macaroon_path: /Users/tanaybhatt/kuberbolt-lnd/seller-lnd-data-fresh/data/chain/bitcoin/regtest/admin.macaroon
+
+budget:
+  daily_limit_msat: 100000000
+  monthly_limit_msat: 3000000000
+
+logging:
+  level: info
+  format: console

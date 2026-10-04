@@ -12,6 +12,7 @@ import (
 	"github.com/kuberbolt/financial-pod/internal/config"
 	"github.com/kuberbolt/financial-pod/internal/gateway"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 func main() {
@@ -20,7 +21,11 @@ func main() {
 	initMode  := flag.Bool("init", false, "Initialize a new agent and exit")
 	flag.Parse()
 
-	logger, err := zap.NewProduction()
+	zapCfg := zap.NewDevelopmentConfig()
+	zapCfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	zapCfg.EncoderConfig.TimeKey = "time"
+	zapCfg.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout("15:04:05")
+	logger, err := zapCfg.Build()
 	if err != nil {
 		log.Fatalf("failed to build logger: %v", err)
 	}

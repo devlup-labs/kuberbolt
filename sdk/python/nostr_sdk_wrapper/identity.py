@@ -73,12 +73,13 @@ def get_or_create_identity(path: str | Path) -> Keys:
 
 
 async def publish_profile(client: Client, keys: Keys, name: str | None = None,
-                           about: str | None = None, picture: str | None = None,
-                           **extra_fields) -> Event:
+                          about: str | None = None, picture: str | None = None,
+                          **extra_fields) -> Event:
     """Publish a kind:0 profile (NIP-01 metadata) for this agent. `client`
     must already be connected to at least one relay. `**extra_fields` maps
     to any other MetadataRecord field (website, nip05, lud16, etc.)."""
-    record = MetadataRecord(name=name, about=about, picture=picture, **extra_fields)
+    record = MetadataRecord(name=name, about=about,
+                            picture=picture, **extra_fields)
     metadata = Metadata.from_record(record)
     event = metadata.into_event_builder().finalize(keys)
     await client.send_event(event)

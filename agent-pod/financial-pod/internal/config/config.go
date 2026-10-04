@@ -17,6 +17,7 @@ type Config struct {
 	Agent     AgentConfig     `yaml:"agent"`
 	Services  []ServiceConfig `yaml:"services"`
 	Network   NetworkConfig   `yaml:"network"`
+	Brain     BrainConfig     `yaml:"brain"`
 	Lightning LightningConfig `yaml:"lightning"`
 	Budget    budget.Config   `yaml:"budget"`
 	Logging   LoggingConfig   `yaml:"logging"`
@@ -44,8 +45,14 @@ type NetworkConfig struct {
 	NostrRelays []string `yaml:"nostr_relays"`
 }
 
+// BrainConfig describes the private compute service co-located with this
+// Financial Pod. It is deliberately separate from the public gRPC endpoint.
+type BrainConfig struct {
+	URL string `yaml:"url"`
+}
+
 type LightningConfig struct {
-	Network      string `yaml:"network"`       // "regtest", "testnet", "mainnet"
+	Network      string `yaml:"network"` // "regtest", "testnet", "mainnet"
 	LNDHost      string `yaml:"lnd_host"`
 	LNDGRPCPort  int    `yaml:"lnd_grpc_port"`
 	TLSCertPath  string `yaml:"tls_cert_path"`
@@ -94,6 +101,9 @@ func Initialize(agentName string) (*Config, error) {
 			GRPCPort:    6001,
 			PublicHost:  "127.0.0.1",
 			NostrRelays: []string{"ws://127.0.0.1:8008"},
+		},
+		Brain: BrainConfig{
+			URL: "http://127.0.0.1:8000",
 		},
 		Lightning: LightningConfig{
 			Network:      "regtest",

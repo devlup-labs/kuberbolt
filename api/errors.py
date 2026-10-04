@@ -37,12 +37,10 @@ class ErrorResponse(BaseModel):
 
 class InvalidPrivkeyError(ValueError):
     """Raised when a nostr private key cannot be parsed."""
-    pass
 
 
 class RelayUnavailableError(ConnectionError):
     """Raised when a relay connection cannot be established."""
-    pass
 
 
 # ---------------------------------------------------------------------------

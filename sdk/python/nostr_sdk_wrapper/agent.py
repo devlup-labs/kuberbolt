@@ -25,17 +25,8 @@ Typical usage:
 """
 
 from __future__ import annotations
-
-import asyncio
-import json
-import logging
-import sqlite3
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Literal
-
-logger = logging.getLogger("kuberbolt.nostr_sdk_wrapper.agent")
-
+from .discovery import TaggedEvent
+from . import discovery, feedback, handshake, identity
 from nostr_sdk import (
     Client,
     Event,
@@ -49,15 +40,22 @@ from nostr_sdk import (
     Tag,
 )
 
-from . import discovery, feedback, handshake, identity
-from .discovery import TaggedEvent
+import asyncio
+import json
+import logging
+import sqlite3
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Literal
+
+logger = logging.getLogger("kuberbolt.nostr_sdk_wrapper.agent")
 
 
 class AgentNotRegisteredError(ValueError):
     def __init__(self, pubkey: str):
         self.pubkey = pubkey
-        super().__init__(f"You are not registered (no profile found for {pubkey})")
-
+        super().__init__(
+            f"You are not registered (no profile found for {pubkey})")
 
 
 class KuberboltAgent:
@@ -75,9 +73,9 @@ class KuberboltAgent:
 
     @classmethod
     async def create(cls, identity_path: str | Path, relay_urls: list[str],
-                      profile_name: str | None = None, profile_about: str | None = None,
-                      profile_picture: str | None = None,
-                      connect_wait_secs: float = 3.0) -> "KuberboltAgent":
+                     profile_name: str | None = None, profile_about: str | None = None,
+                     profile_picture: str | None = None,
+                     connect_wait_secs: float = 3.0) -> "KuberboltAgent":
         """Load (or generate + persist) an identity, connect to the given
         relays, and optionally publish a kind:0 profile in one call. This
         is the intended entry point -- everything else on this class
@@ -147,7 +145,7 @@ class KuberboltAgent:
         return self.keys.public_key().to_bech32()
 
     async def publish_profile(self, name: str | None = None, about: str | None = None,
-                               picture: str | None = None, **extra_fields) -> Event:
+                              picture: str | None = None, **extra_fields) -> Event:
         """Publish/update this agent's kind:0 profile."""
         return await identity.publish_profile(
             self.client, self.keys, name=name, about=about, picture=picture, **extra_fields
@@ -172,7 +170,8 @@ class KuberboltAgent:
                 "price_unit": service["price_unit"],
             }
             content = json.dumps(payload)
-            category_tag = f"kuberbolt/{service['category']}" if not service["category"].startswith("kuberbolt/") else service["category"]
+            category_tag = f"kuberbolt/{service['category']}" if not service["category"].startswith(
+                "kuberbolt/") else service["category"]
             listing_event = (
                 EventBuilder(Kind(discovery.KIND_SERVICE_LISTING), content)
                 .tags([
@@ -199,16 +198,20 @@ class KuberboltAgent:
 
         current_profile = json.loads(existing.content())
         changed = {update["field"]: update["value"] for update in updates}
-        profile_fields = {"display_name", "about", "picture_url", "lightning_address"}
-        listing_fields = {"service_name", "service_description", "price_sats", "price_unit"}
+        profile_fields = {"display_name", "about",
+                          "picture_url", "lightning_address"}
+        listing_fields = {"service_name",
+                          "service_description", "price_sats", "price_unit"}
 
         profile_event_id = None
         if changed.keys() & profile_fields:
             profile_event = await self.publish_profile(
                 name=changed.get("display_name", current_profile.get("name")),
                 about=changed.get("about", current_profile.get("about")),
-                picture=changed.get("picture_url", current_profile.get("picture")),
-                lud16=changed.get("lightning_address", current_profile.get("lud16")),
+                picture=changed.get(
+                    "picture_url", current_profile.get("picture")),
+                lud16=changed.get("lightning_address",
+                                  current_profile.get("lud16")),
             )
             profile_event_id = profile_event.id().to_hex()
 
@@ -216,14 +219,16 @@ class KuberboltAgent:
         if changed.keys() & listing_fields:
             existing_listing = await discovery.fetch_existing_listing(self.client, self.pubkey_hex)
             if existing_listing is None:
-                raise ValueError("No existing service listing to update - register as merchant first")
+                raise ValueError(
+                    "No existing service listing to update - register as merchant first")
             current_listing = json.loads(existing_listing.content())
             merged_listing = {
                 **current_listing,
                 **{field: changed[field] for field in listing_fields if field in changed},
             }
             listing_event = (
-                EventBuilder(Kind(discovery.KIND_SERVICE_LISTING), json.dumps(merged_listing))
+                EventBuilder(Kind(discovery.KIND_SERVICE_LISTING),
+                             json.dumps(merged_listing))
                 .tags(existing_listing.tags())
                 .finalize(self.keys)
             )
@@ -241,7 +246,7 @@ class KuberboltAgent:
     # ------------------------------------------------------------------
 
     async def find_providers(self, tag: str, kinds: list[int] | None = None,
-                              limit: int = 50, timeout_secs: int = 8) -> list[TaggedEvent]:
+                             limit: int = 50, timeout_secs: int = 8) -> list[TaggedEvent]:
         """Find service providers self-tagged with `tag` (normalized
         automatically -- 'Video_Analysis' and 'video-analysis' match the
         same providers)."""
@@ -250,9 +255,10 @@ class KuberboltAgent:
         )
 
     async def discover(self, category: str, price_max: int | None = None,
-                        limit: int = 50, timeout_secs: int = 8) -> list[dict]:
+                       limit: int = 50, timeout_secs: int = 8) -> list[dict]:
         """Discover service listings under `category` with optional price filtering."""
-        category_tag = f"kuberbolt/{category}" if not category.startswith("kuberbolt/") else category
+        category_tag = f"kuberbolt/{category}" if not category.startswith(
+            "kuberbolt/") else category
         results = await discovery.find_by_hashtag(
             self.client, category_tag, kinds=[discovery.KIND_SERVICE_LISTING],
             limit=limit, timeout_secs=timeout_secs
@@ -388,7 +394,8 @@ class KuberboltAgent:
                     break
                 except Exception as e:
                     consecutive_errors += 1
-                    backoff_secs = min(poll_interval * (2 ** (consecutive_errors - 1)), 60)
+                    backoff_secs = min(
+                        poll_interval * (2 ** (consecutive_errors - 1)), 60)
                     logger.error(
                         "Error fetching handshake events (attempt %d): %s. Backing off for %ds.",
                         consecutive_errors,
@@ -402,7 +409,8 @@ class KuberboltAgent:
                     event_id = ev.id().to_hex()
 
                     cursor = conn.cursor()
-                    cursor.execute("SELECT 1 FROM seen_requests WHERE event_id = ?", (event_id,))
+                    cursor.execute(
+                        "SELECT 1 FROM seen_requests WHERE event_id = ?", (event_id,))
                     if cursor.fetchone() is not None:
                         continue
 
@@ -411,7 +419,8 @@ class KuberboltAgent:
                         if not isinstance(payload, dict):
                             continue
                     except Exception as e:
-                        logger.warning("Failed to decrypt event %s: %s", event_id, e)
+                        logger.warning(
+                            "Failed to decrypt event %s: %s", event_id, e)
                         continue
 
                     if payload.get("action") != "resolve_endpoint":
@@ -419,7 +428,8 @@ class KuberboltAgent:
 
                     job_id = payload.get("job_id")
                     if not job_id:
-                        logger.warning("Missing job_id in resolve_endpoint request %s", event_id)
+                        logger.warning(
+                            "Missing job_id in resolve_endpoint request %s", event_id)
                         continue
 
                     sender_pubkey = ev.author().to_hex()
@@ -429,14 +439,6 @@ class KuberboltAgent:
                         )
                         continue
 
-                    # Record event as seen in SQLite FIRST to prevent races
-                    now_iso = datetime.now(timezone.utc).isoformat()
-                    with conn:
-                        conn.execute(
-                            "INSERT INTO seen_requests (event_id, sender_pubkey, job_id, replied_at) VALUES (?, ?, ?, ?)",
-                            (event_id, sender_pubkey, job_id, now_iso),
-                        )
-
                     # Send handshake response with host and port
                     reply_payload = {
                         "job_id": job_id,
@@ -445,6 +447,12 @@ class KuberboltAgent:
                     }
                     try:
                         await self.send_handshake(sender_pubkey, reply_payload)
+                        now_iso = datetime.now(timezone.utc).isoformat()
+                        with conn:
+                            conn.execute(
+                                "INSERT INTO seen_requests (event_id, sender_pubkey, job_id, replied_at) VALUES (?, ?, ?, ?)",
+                                (event_id, sender_pubkey, job_id, now_iso),
+                            )
                         logger.info(
                             "Successfully replied to resolve_endpoint for job_id %s to %s",
                             job_id,

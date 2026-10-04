@@ -1,0 +1,30 @@
+agent:
+  name: provider
+  role: provider
+  nostr_npub: ""
+  nostr_priv_key: "replace-with-a-32-byte-hex-key"
+  created_at: "2026-10-02T00:00:00Z"
+services:
+  - name: local-compute
+    kind: 0
+    description: Local Brain Pod compute service
+    price_msat: 1000
+    timeout_sec: 60
+network:
+  grpc_port: 6001
+  public_host: 127.0.0.1
+  nostr_relays: []
+brain:
+  url: http://brain:8000
+lightning:
+  network: regtest
+  lnd_host: host.docker.internal
+  lnd_grpc_port: 10002
+  tls_cert_path: /lnd/tls.cert
+  macaroon_path: /lnd/admin.macaroon
+budget:
+  daily_limit_msat: 100000000
+  monthly_limit_msat: 3000000000
+logging:
+  level: info
+  format: json

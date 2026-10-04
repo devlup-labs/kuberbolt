@@ -37,6 +37,7 @@ from nostr_sdk import (
     Nip44Version,
     PublicKey,
     ReqTarget,
+    SingleLetterTag,
     Tag,
     nip44_decrypt,
     nip44_encrypt,
@@ -51,7 +52,8 @@ def build_encrypted_event(sender_keys: Keys, recipient_pubkey: PublicKey, payloa
     """Build and sign a NIP-44-encrypted handshake event. Does not send it --
     see `send_encrypted_request` for that."""
     plaintext = json.dumps(payload, separators=(",", ":"))
-    ciphertext = nip44_encrypt(sender_keys.secret_key(), recipient_pubkey, plaintext, Nip44Version.V2)
+    ciphertext = nip44_encrypt(sender_keys.secret_key(
+    ), recipient_pubkey, plaintext, Nip44Version.V2)
     return (
         EventBuilder(Kind(KIND_HANDSHAKE), ciphertext)
         .tags([Tag.public_key(recipient_pubkey)])
@@ -60,7 +62,7 @@ def build_encrypted_event(sender_keys: Keys, recipient_pubkey: PublicKey, payloa
 
 
 async def send_encrypted_request(client: Client, sender_keys: Keys,
-                                  recipient_pubkey: PublicKey, payload: dict) -> Event:
+                                 recipient_pubkey: PublicKey, payload: dict) -> Event:
     """Build, sign, and publish a NIP-44-encrypted event to `recipient_pubkey`."""
     event = build_encrypted_event(sender_keys, recipient_pubkey, payload)
     await client.send_event(event)
@@ -73,14 +75,17 @@ def decrypt_event(recipient_keys: Keys, event: Event) -> dict:
     event's claimed author can't be trusted."""
     if not event.verify():
         raise ValueError("event signature invalid")
-    plaintext = nip44_decrypt(recipient_keys.secret_key(), event.author(), event.content())
+    plaintext = nip44_decrypt(
+        recipient_keys.secret_key(), event.author(), event.content())
     return json.loads(plaintext)
 
 
 async def fetch_handshake_events(client: Client, recipient_pubkey: PublicKey,
-                                  timeout_secs: int = 10) -> list[Event]:
+                                 timeout_secs: int = 10) -> list[Event]:
     """Fetch events addressed to `recipient_pubkey` (via a 'p' tag) of our
     handshake kind. Call `decrypt_event(my_keys, ev)` on each result."""
-    f = Filter().kind(Kind(KIND_HANDSHAKE)).pubkey(recipient_pubkey)
+    f = Filter().kind(Kind(KIND_HANDSHAKE)).custom_tag(
+        SingleLetterTag.from_byte(ord("p")), recipient_pubkey.to_hex()
+    )
     events = await client.fetch_events(ReqTarget.auto([f]), timedelta(seconds=timeout_secs))
     return list(events)

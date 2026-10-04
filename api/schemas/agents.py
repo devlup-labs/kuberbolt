@@ -19,7 +19,8 @@ class LightningCredentials(BaseModel):
     @model_validator(mode="after")
     def validate_lightning(self) -> "LightningCredentials":
         if not self.lnurl and not self.lightning_address:
-            raise ValueError("At least one of lnurl or lightning_address must be provided.")
+            raise ValueError(
+                "At least one of lnurl or lightning_address must be provided.")
         return self
 
 
@@ -44,7 +45,7 @@ class RegisterAgentResponse(BaseModel):
     agent_pubkey: str
     session_token: str
     agent_privkey: str  # hex-encoded Nostr secret key
-    agent_nsec: str     # bech32-encoded Nostr secret key 
+    agent_nsec: str     # bech32-encoded Nostr secret key
     role: str
     lightning: LightningCredentials | None = None
     service: ServiceInfo | None = None
@@ -59,9 +60,11 @@ class UpdateField(BaseModel):
                    "service_name", "service_description", "price_sats", "price_unit"]
     value: str | int
 
+
 class UpdateAgentRequest(BaseModel):
     agent_pubkey: str
     updates: list[UpdateField]
+
 
 class UpdateAgentResponse(BaseModel):
     agent_pubkey: str

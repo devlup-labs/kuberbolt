@@ -1,0 +1,33 @@
+version: "1"
+services:
+  # 1. Python FastAPI Backend (connected to Nostr relays)
+  - type: web
+    name: kuberbolt-api
+    runtime: python
+    repo: https://github.com/D1ff1cult11/kuberbolt
+    plan: free
+    buildCommand: pip install -e .
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    autoDeployTrigger: commit
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.0"
+      - key: FRONTEND_ORIGIN
+        value: https://kuberbolt-dashboard.onrender.com
+
+  # 2. React Frontend (Static Site)
+  - type: web
+    name: kuberbolt-dashboard
+    runtime: static
+    repo: https://github.com/D1ff1cult11/kuberbolt
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    autoDeployTrigger: commit
+    rootDir: frontend
+    envVars:
+      - key: VITE_API_URL
+        value: https://kuberbolt-api.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

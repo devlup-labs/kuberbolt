@@ -2,7 +2,6 @@ import os
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 import tempfile
-from pathlib import Path
 
 from api.agent_registry import get_agent_registry
 
@@ -20,7 +19,8 @@ if env_relays:
         import json
         DEFAULT_RELAYS = json.loads(env_relays)
     else:
-        DEFAULT_RELAYS = [r.strip() for r in env_relays.split(",") if r.strip()]
+        DEFAULT_RELAYS = [r.strip()
+                          for r in env_relays.split(",") if r.strip()]
 else:
     DEFAULT_RELAYS = ["wss://relay.damus.io", "wss://nos.lol"]
 

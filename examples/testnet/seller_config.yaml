@@ -1,0 +1,36 @@
+agent:
+  name: "seller-agent"
+  nostr_priv_key: "${SELLER_NOSTR_PRIVKEY}"
+  role: "merchant"
+
+services:
+  - name: "text-summarization"
+    kind: 31990
+    description: "Summarize text using Google Gemini"
+    price_msat: 100000    # 100 sats in millisats
+    timeout_sec: 60
+
+network:
+  grpc_port: 6001
+  public_host: "0.0.0.0"
+  nostr_relays:
+    - "wss://relay.damus.io"
+    - "wss://nos.lol"
+
+brain:
+  url: "http://127.0.0.1:8001"
+
+lightning:
+  network: "testnet"
+  lnd_host: "127.0.0.1"
+  lnd_grpc_port: 10009
+  tls_cert_path: "./seller-lnd-data/tls.cert"
+  macaroon_path: "./seller-lnd-data/data/chain/bitcoin/testnet/admin.macaroon"
+
+budget:
+  daily_limit_msat: 100000000
+  monthly_limit_msat: 3000000000
+
+logging:
+  level: "info"
+  format: "console"

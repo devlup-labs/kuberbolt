@@ -1,0 +1,5 @@
+# Handle line endings automatically for text files
+* text=auto
+
+# Enforce LF for bash scripts so they execute correctly in Docker/Linux
+*.sh text eol=lf

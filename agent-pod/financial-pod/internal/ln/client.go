@@ -150,6 +150,7 @@ type InvoiceUpdate struct {
 // Using an interface here (instead of *Client directly) allows the gateway
 // layer to be tested with a mock without a live LND connection.
 type ClientInterface interface {
+	GetInfo(ctx context.Context) (*lnrpc.GetInfoResponse, error)
 	AddHoldInvoice(ctx context.Context, rhash []byte, amountMSat int64, expirySec int64, memo string) (string, error)
 	SubscribeSingleInvoice(ctx context.Context, rhash []byte) (<-chan InvoiceUpdate, error)
 	SettleInvoice(ctx context.Context, preimage []byte) error

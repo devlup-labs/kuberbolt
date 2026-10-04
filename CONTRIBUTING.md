@@ -8,7 +8,7 @@ To set up your local development environment:
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/your-org/kuberbolt.git
+   git clone https://github.com/devlup-labs/kuberbolt.git
    cd kuberbolt
    ```
 
@@ -49,3 +49,4 @@ Before submitting a pull request, ensure all tests pass.
 3. Update the documentation if your changes require it.
 4. Ensure your code conforms to our linting standards (e.g., `flake8`/`black` for Python, `gofmt` for Go).
 5. Issue that pull request! Please provide a clear and descriptive PR message explaining the "why" and "what" of your changes.
+

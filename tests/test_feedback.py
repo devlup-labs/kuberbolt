@@ -52,3 +52,30 @@ def test_create_feedback_rejects_missing_token(client):
     })
 
     assert response.status_code == 401
+
+
+import pytest
+from unittest.mock import AsyncMock
+from nostr_sdk import Keys, PublicKey
+from sdk.python.nostr_sdk_wrapper.feedback import publish_feedback
+
+
+@pytest.mark.asyncio
+async def test_publish_feedback_builds_event_with_string_job_id():
+    mock_client = AsyncMock()
+    keys = Keys.generate()
+    counterparty = PublicKey.parse("c" * 64)
+
+    event = await publish_feedback(
+        client=mock_client,
+        reviewer_keys=keys,
+        counterparty_pubkey=counterparty,
+        job_id="uuid-or-arbitrary-job-id",
+        feedback_text="Great service",
+        rating=5,
+    )
+
+    mock_client.send_event.assert_awaited_once_with(event)
+    tags = [t.to_vec() for t in event.tags()]
+    assert ["e", "uuid-or-arbitrary-job-id"] in tags
+    assert ["p", "c" * 64] in tags

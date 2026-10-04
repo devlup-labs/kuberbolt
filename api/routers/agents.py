@@ -2,7 +2,6 @@ from datetime import datetime, timezone
 import os
 import secrets
 import tempfile
-from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 

@@ -138,6 +138,11 @@ def _build_mock_agent() -> MagicMock:
     agent.send_handshake = AsyncMock(return_value=mock_handshake_event)
     agent.fetch_handshake_replies = AsyncMock(return_value=[{"result": "ok"}])
 
+    # feedback methods
+    mock_feedback_event = MagicMock()
+    mock_feedback_event.id.return_value.to_hex.return_value = "feedback_event_hex"
+    agent.publish_feedback = AsyncMock(return_value=mock_feedback_event)
+
     return agent
 
 
@@ -204,5 +209,4 @@ def client(mock_agent):
             yield TestClient(app, raise_server_exceptions=False)
 
         finally:
-            _registry._agents.pop(FAKE_PUBKEY,None)
-            _registry._token_hashes.pop(FAKE_PUBKEY,None)
+            _lru._cache.pop(FAKE_PUBKEY, None)

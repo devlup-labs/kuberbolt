@@ -7,13 +7,14 @@ import (
 
 // Entry holds the in-memory state of an active L402 challenge.
 type Entry struct {
-	Invoice   string
-	RHash     []byte // raw bytes
-	RHashHex  string
-	Preimage  []byte // raw bytes — kept secret, written to ledger at settlement
+	JobID         string
+	Invoice       string
+	RHash         []byte // raw bytes
+	RHashHex      string
+	Preimage      []byte // raw bytes — kept secret, written to ledger at settlement
 	MacaroonBytes []byte
-	CreatedAt time.Time
-	ExpiresAt time.Time
+	CreatedAt     time.Time
+	ExpiresAt     time.Time
 }
 
 // IsExpired reports whether this entry has passed its expiry time.

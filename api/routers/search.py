@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 
 from fastapi import APIRouter, Query
 
@@ -19,8 +18,10 @@ router = APIRouter(prefix="/api/agents", tags=["search"])
 
 @router.get("/search", response_model=SearchProvidersResponse)
 async def search_agents_by_tag(
-    tag: str = Query(..., description="Capability tag to search for (e.g. 'video-analysis')"),
-    limit: int = Query(25, ge=1, le=100, description="Maximum number of results"),
+    tag: str = Query(...,
+                     description="Capability tag to search for (e.g. 'video-analysis')"),
+    limit: int = Query(
+        25, ge=1, le=100, description="Maximum number of results"),
 ):
     """Search for agents/providers by capability hashtag on the Nostr network."""
     normalised = normalize_tag(tag)

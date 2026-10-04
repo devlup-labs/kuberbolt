@@ -3,6 +3,8 @@ package ledger
 import (
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -39,6 +41,11 @@ type PaymentHold struct {
 
 // Open opens (or creates) the SQLite database at dbPath and applies the schema.
 func Open(dbPath string) (*DB, error) {
+	if dir := filepath.Dir(dbPath); dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return nil, fmt.Errorf("ledger: create dir %q: %w", dir, err)
+		}
+	}
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("ledger: open %q: %w", dbPath, err)
@@ -104,12 +111,36 @@ func (d *DB) UpdateStatus(jobID, status string) error {
 	if status == "settled" || status == "cancelled" {
 		settledAt = time.Now()
 	}
-	_, err := d.db.Exec(
+	res, err := d.db.Exec(
 		`UPDATE ledger SET status = ?, settled_at = ? WHERE job_id = ?`,
 		status, settledAt, jobID,
 	)
 	if err != nil {
 		return fmt.Errorf("ledger: UpdateStatus %q→%q: %w", jobID, status, err)
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("ledger: transaction with job_id %q not found", jobID)
+	}
+	return nil
+}
+
+// UpdateStatusByPaymentHash transitions a transaction to a new status using its payment hash.
+func (d *DB) UpdateStatusByPaymentHash(rhash, status string) error {
+	var settledAt interface{}
+	if status == "settled" || status == "cancelled" {
+		settledAt = time.Now()
+	}
+	res, err := d.db.Exec(
+		`UPDATE ledger SET status = ?, settled_at = ? WHERE invoice_payment_hash = ?`,
+		status, settledAt, rhash,
+	)
+	if err != nil {
+		return fmt.Errorf("ledger: UpdateStatusByPaymentHash %q→%q: %w", rhash, status, err)
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("ledger: transaction with payment hash %q not found", rhash)
 	}
 	return nil
 }

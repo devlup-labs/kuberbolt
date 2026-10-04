@@ -8,6 +8,7 @@ import (
 
 	"github.com/kuberbolt/financial-pod/internal/ledger"
 	"github.com/kuberbolt/financial-pod/internal/ln"
+	"github.com/lightningnetwork/lnd/lnrpc"
 )
 
 // MockLNClient mocks the LND operations.
@@ -17,6 +18,14 @@ type MockLNClient struct {
 	CancelInvoiceFunc          func(ctx context.Context, paymentHash []byte) error
 	SettleInvoiceFunc          func(ctx context.Context, preimage []byte) error
 	SendPaymentFunc            func(ctx context.Context, paymentRequest string, timeoutSec int32) ([]byte, error)
+	GetInfoFunc                func(ctx context.Context) (*lnrpc.GetInfoResponse, error)
+}
+
+func (m *MockLNClient) GetInfo(ctx context.Context) (*lnrpc.GetInfoResponse, error) {
+	if m.GetInfoFunc != nil {
+		return m.GetInfoFunc(ctx)
+	}
+	return &lnrpc.GetInfoResponse{IdentityPubkey: "mock_pubkey"}, nil
 }
 
 func (m *MockLNClient) AddHoldInvoice(ctx context.Context, rhash []byte, amountMSat int64, expirySec int64, memo string) (string, error) {

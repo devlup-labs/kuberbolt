@@ -1,0 +1,29 @@
+agent:
+  name: "buyer-agent"
+  nostr_priv_key: "${BUYER_NOSTR_PRIVKEY}"
+  role: "client"
+
+network:
+  grpc_port: 6001
+  public_host: "0.0.0.0"
+  nostr_relays:
+    - "wss://relay.damus.io"
+    - "wss://nos.lol"
+
+brain:
+  url: "http://127.0.0.1:8001"
+
+lightning:
+  network: "testnet"
+  lnd_host: "127.0.0.1"
+  lnd_grpc_port: 10009
+  tls_cert_path: "./buyer-lnd-data/tls.cert"
+  macaroon_path: "./buyer-lnd-data/data/chain/bitcoin/testnet/admin.macaroon"
+
+budget:
+  daily_limit_msat: 100000000   # 100k sats
+  monthly_limit_msat: 3000000000
+
+logging:
+  level: "info"
+  format: "console"
